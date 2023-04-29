@@ -89,10 +89,9 @@ static guint32 minecraft_add_varint(proto_tree *tree, int hfindex, tvbuff_t *tvb
 }
 
 static void minecraft_add_string(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset) {
-    const guint offset_start = *offset;
     guint32 value = 0;
     read_varint(&value, tvb, offset);
-    proto_tree_add_item(tree, hfindex, tvb, offset_start, *offset - offset_start + value, ENC_NA);
+    proto_tree_add_item(tree, hfindex, tvb, *offset, value, ENC_NA);
     *offset += value;
 }
 
