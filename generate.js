@@ -54,7 +54,7 @@ function* generate_snippet(type, path, types, name, data, tree = "tree") {
   else throw new UnsupportedError("Invalid type " + type)
 }
 
-function merge_snippet(iterator) {
+function merge_snippet(iterator, should_break = false) {
   let code = ""
   try {
     for (const item of iterator) {
@@ -63,6 +63,7 @@ function merge_snippet(iterator) {
   } catch (e) {
       if (!(e instanceof UnsupportedError)) throw e;
       code += `// [STUB]: ${e.message}\n`
+      if (should_break) code += "break;\n" 
     }
   return code.trim();
 }
@@ -218,7 +219,7 @@ minecraft_add_buffer(${tree}, hf_${path}, tvb, &offset, ${path}_len);`,
     code = `${count.return_type} ${path}_count = ${count.code}
 proto_tree* ${path}_tree = minecraft_add_subtree(${tree}, hf_${path}, tvb, &offset);
 for (int i = 0; i < ${path}_count; i++) {
-${indent(merge_snippet(generate_snippet(data.type, `${path}_item`, types, `${name}Item`, undefined, `${path}_tree`)), 2)}
+${indent(merge_snippet(generate_snippet(data.type, `${path}_item`, types, `${name}Item`, undefined, `${path}_tree`), true), 2)}
 }`
     yield { code }
   }
