@@ -37,6 +37,7 @@ class UnsupportedError extends Error {
 
 function* generate_snippet(type, path, types, name, data, tree = "tree") {
   let field_info
+  if (type == undefined) return;
   if (typeof type !== "string") field_info = type;
   else {
     if (!(type in types)) throw new UnsupportedError("Unknown type " + type)
