@@ -33,7 +33,7 @@ const natives = {
         .map(({ type, name, anon }) => {
           if (name === 'item') console.error(type)
           const new_path = `${path}_${name}`
-          const { code, hf_type } = read(type, types, undefined, {
+          const { code, hf_type } = generate_snippet(type, types, undefined, {
             path: new_path,
             name
           })
@@ -127,7 +127,7 @@ const natives = {
     }
   },
   buffer({ countType }, types, {path, name }) {
-    const count = read(countType, types, undefined, { path: `${path}_len`})
+    const count = generate_snippet(countType, types, undefined, { path: `${path}_len`})
 
     hf.push({
       name: name ? `${name}Length` : 'Length',
@@ -143,7 +143,7 @@ minecraft_add_buffer(tree, hf_${path}, tvb, &offset, ${path}_len);`,
     }
   },
   option(args, types, ctx) {
-    const inner = read(args, types, undefined, ctx)
+    const inner = generate_snippet(args, types, undefined, ctx)
     return {
       code:
 `if (tvb_get_guint8(tvb, offset) == 1) {
@@ -158,7 +158,7 @@ minecraft_add_buffer(tree, hf_${path}, tvb, &offset, ${path}_len);`,
 const functions = []
 const hf = []
 
-function read(type, types, args, ctx = {}) {
+function generate_snippet(type, types, args, ctx = {}) {
   let fieldInfo
   if (typeof type === "string") {
     if (!(type in types)) throw new Error("unknown type " + type)
@@ -173,9 +173,9 @@ function read(type, types, args, ctx = {}) {
     if (fieldInfo === "native") {
       throw new Error("unknown native " + type)
     }
-    return read(fieldInfo, types, args, ctx)
+    return generate_snippet(fieldInfo, types, args, ctx)
   } else if (Array.isArray(fieldInfo)) {
-    return read(fieldInfo[0], types, fieldInfo[1], ctx)
+    return generate_snippet(fieldInfo[0], types, fieldInfo[1], ctx)
   } else throw new Error("Invalid type " + type)
 }
 
@@ -219,7 +219,7 @@ ${indent(
   col_set_str(pinfo->cinfo, COL_INFO, "${unsnake(name)} [${namespace[0]}] (${namespace[1]})");
   break;`
         }
-        const { code } = read(names_to_types[name], types, undefined, {
+        const { code } = generate_snippet(names_to_types[name], types, undefined, {
           path: `${path}_${name}`,
         })
         return `case ${id}:
