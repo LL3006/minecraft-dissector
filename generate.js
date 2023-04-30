@@ -27,15 +27,14 @@ function uncamel(s) {
 }
 
 const natives = {
-  container(args, { path, read }) {
+  container(args, types, { path }) {
     return {
       code: args
         .map(({ type, name, anon }) => {
           if (name === 'item') console.error(type)
           const new_path = `${path}_${name}`
-          const { code, hf_type } = read(type, undefined, {
+          const { code, hf_type } = read(type, types, undefined, {
             path: new_path,
-            read,
             name
           })
           hf.push({
@@ -48,87 +47,87 @@ const natives = {
         .join("\n"),
     }
   },
-  varint(args, { path }) {
+  varint(args, types, { path }) {
     return {
       code: `minecraft_add_varint(tree, hf_${path}, tvb, &offset);`,
       hf_type: "FT_UINT32",
       return_type: "guint32"
     }
   },
-  string(args, { path }) {
+  string(args, types, { path }) {
     return {
       code: `minecraft_add_string(tree, hf_${path}, tvb, &offset);`,
       hf_type: "FT_STRING",
     }
   },
-  bool(args, { path }) {
+  bool(args, types, { path }) {
     return {
       code: `minecraft_add_bool(tree, hf_${path}, tvb, &offset);`,
       hf_type: "FT_BOOLEAN",
     }
   },
-  u8(args, { path }) {
+  u8(args, types, { path }) {
     return {
       code: `minecraft_add_u8(tree, hf_${path}, tvb, &offset);`,
       hf_type: "FT_UINT8",
     }
   },
-  i8(args, { path }) {
+  i8(args, types, { path }) {
     return {
       code: `minecraft_add_i8(tree, hf_${path}, tvb, &offset);`,
       hf_type: "FT_INT8",
     }
   },
-  u16(args, { path }) {
+  u16(args, types, { path }) {
     return {
       code: `minecraft_add_u16(tree, hf_${path}, tvb, &offset);`,
       hf_type: "FT_UINT16",
     }
   },
-  i16(args, { path }) {
+  i16(args, types, { path }) {
     return {
       code: `minecraft_add_i16(tree, hf_${path}, tvb, &offset);`,
       hf_type: "FT_INT16",
     }
   },
-  i32(args, { path }) {
+  i32(args, types, { path }) {
     return {
       code: `minecraft_add_i32(tree, hf_${path}, tvb, &offset);`,
       hf_type: "FT_INT32",
     }
   },
-  i64(args, { path }) {
+  i64(args, types, { path }) {
     return {
       code: `minecraft_add_i64(tree, hf_${path}, tvb, &offset);`,
       hf_type: "FT_INT64",
     }
   },
-  f32(args, { path }) {
+  f32(args, types, { path }) {
     return {
       code: `minecraft_add_f32(tree, hf_${path}, tvb, &offset);`,
       hf_type: "FT_FLOAT",
     }
   },
-  f64(args, { path }) {
+  f64(args, types, { path }) {
     return {
       code: `minecraft_add_f64(tree, hf_${path}, tvb, &offset);`,
       hf_type: "FT_DOUBLE",
     }
   },
-  UUID(args, { path }) {
+  UUID(args, types, { path }) {
     return {
       code: `minecraft_add_UUID(tree, hf_${path}, tvb, &offset);`,
       hf_type: "FT_BYTES",
     }
   },
-  restBuffer(args, { path }) {
+  restBuffer(args, types, { path }) {
     return {
       code: `minecraft_add_restbuffer(tree, hf_${path}, tvb, &offset);`,
       hf_type: "FT_BYTES",
     }
   },
-  buffer({ countType }, { read, path, name }) {
-    const count = read(countType, undefined, { read, path: `${path}_len`})
+  buffer({ countType }, types, {path, name }) {
+    const count = read(countType, types, undefined, { path: `${path}_len`})
 
     hf.push({
       name: name ? `${name}Length` : 'Length',
@@ -143,8 +142,8 @@ minecraft_add_buffer(tree, hf_${path}, tvb, &offset, ${path}_len);`,
       hf_type: "FT_BYTES",
     }
   },
-  option(args, ctx) {
-    const inner = ctx.read(args, undefined, ctx)
+  option(args, types, ctx) {
+    const inner = read(args, types, undefined, ctx)
     return {
       code:
 `if (tvb_get_guint8(tvb, offset) == 1) {
@@ -158,6 +157,27 @@ minecraft_add_buffer(tree, hf_${path}, tvb, &offset, ${path}_len);`,
 
 const functions = []
 const hf = []
+
+function read(type, types, args, ctx = {}) {
+  let fieldInfo
+  if (typeof type === "string") {
+    if (!(type in types)) throw new Error("unknown type " + type)
+
+    fieldInfo = types[type]
+  } else fieldInfo = type
+
+  if (typeof fieldInfo === "function") {
+    return fieldInfo(args, types, ctx)
+  }
+  if (typeof fieldInfo === "string") {
+    if (fieldInfo === "native") {
+      throw new Error("unknown native " + type)
+    }
+    return read(fieldInfo, types, args, ctx)
+  } else if (Array.isArray(fieldInfo)) {
+    return read(fieldInfo[0], types, fieldInfo[1], ctx)
+  } else throw new Error("Invalid type " + type)
+}
 
 function generate(namespace, skip = []) {
   const types = {}
@@ -174,28 +194,7 @@ function generate(namespace, skip = []) {
   }
 
   Object.assign(types, natives)
-
-  function read(type, args, ctx = {}) {
-    let fieldInfo
-    if (typeof type === "string") {
-      if (!(type in types)) throw new Error("unknown type " + type)
-
-      fieldInfo = types[type]
-    } else fieldInfo = type
-
-    if (typeof fieldInfo === "function") {
-      return fieldInfo(args, ctx)
-    }
-    if (typeof fieldInfo === "string") {
-      if (fieldInfo === "native") {
-        throw new Error("unknown native " + type)
-      }
-      return read(fieldInfo, args, ctx)
-    } else if (Array.isArray(fieldInfo)) {
-      return read(fieldInfo[0], fieldInfo[1], ctx)
-    } else throw new Error("Invalid type " + type)
-  }
-
+  
   const { packet } = types
 
   assert(Array.isArray(packet) && packet.length == 2)
@@ -220,9 +219,8 @@ ${indent(
   col_set_str(pinfo->cinfo, COL_INFO, "${unsnake(name)} [${namespace[0]}] (${namespace[1]})");
   break;`
         }
-        const { code } = read(names_to_types[name], undefined, {
+        const { code } = read(names_to_types[name], types, undefined, {
           path: `${path}_${name}`,
-          read,
         })
         return `case ${id}:
   col_set_str(pinfo->cinfo, COL_INFO, "${unsnake(name)} [${namespace[0]}] (${namespace[1]})");
