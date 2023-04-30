@@ -1,6 +1,8 @@
 const dataPath = require("./minecraft-data/data/dataPaths.json")
+const commonVersions = require("./minecraft-data/data/pc/common/versions.json")
 
-const data = require(`./minecraft-data/data/${dataPath.pc["1.16.3"].protocol}/protocol.json`)
+const MCVERSION = process.env.MCVERSION || commonVersions[commonVersions.length-1]
+const data = require(`./minecraft-data/data/${dataPath.pc[MCVERSION].protocol}/protocol.json`)
 const assert = require("assert")
 
 function indent(code, n = 2) {
@@ -277,7 +279,9 @@ generate(["play", "toClient"])
 const NONE_TYPES = ["FT_STRING", "FT_BYTES", "FT_FLOAT", "FT_DOUBLE", "FT_NONE"]
 
 console.log(
-`${(hf.map(({ path }) => `static int hf_${path} = -1;`).join("\n"))}
+`// Minecraft ${MCVERSION} Java Protocol
+
+${(hf.map(({ path }) => `static int hf_${path} = -1;`).join("\n"))}
 
 static hf_register_info hf_generated[] = {
 ${indent(
