@@ -20,6 +20,7 @@ function unsnake(s) {
 function uncamel(s) {
   return s
     .replace(/_\w/g, (m) => m[1].toUpperCase())
+    .replace(/[A-Z0-9]{2,}/, (m) => m[0] + m.slice(1).toLowerCase())
     .split(/(?=[A-Z0-9])/)
     .map((e) => e[0].toUpperCase() + e.slice(1).toLowerCase())
     .join(" ")
