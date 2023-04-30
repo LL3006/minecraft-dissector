@@ -179,9 +179,9 @@ function generate_snippet(type, types, args, ctx = {}) {
   } else throw new Error("Invalid type " + type)
 }
 
-function generate(namespace, skip = []) {
+function types_from_namespace(namespace) {
   const types = {}
-
+  
   const res = namespace.reduce((c, v) => {
     if (c.types) {
       Object.assign(types, c.types)
@@ -194,8 +194,12 @@ function generate(namespace, skip = []) {
   }
 
   Object.assign(types, natives)
-  
-  const { packet } = types
+  return types
+}
+
+function generate(namespace, skip = []) {
+  const TYPES = types_from_namespace(namespace)
+  const { packet } = TYPES
 
   assert(Array.isArray(packet) && packet.length == 2)
   assert(packet[0] === "container")
@@ -219,7 +223,7 @@ ${indent(
   col_set_str(pinfo->cinfo, COL_INFO, "${unsnake(name)} [${namespace[0]}] (${namespace[1]})");
   break;`
         }
-        const { code } = generate_snippet(names_to_types[name], types, undefined, {
+        const { code } = generate_snippet(names_to_types[name], TYPES, undefined, {
           path: `${path}_${name}`,
         })
         return `case ${id}:
