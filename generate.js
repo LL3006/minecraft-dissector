@@ -213,12 +213,12 @@ minecraft_add_buffer(${tree}, hf_${path}, tvb, &offset, ${path}_len);`,
   *array({path, name, data, types, tree}) {
     if (!data.countType) throw new UnsupportedError("Unknown count method")
     const count = generate_snippet(data.countType,`${path}_count`, types, `${name}Count`, undefined, tree).next().value
-    hf.push({name, path: `${path}_array`, type: "FT_NONE"})
+    hf.push({name, path, type: "FT_NONE"})
     
     code = `${count.return_type} ${path}_count = ${count.code}
-proto_tree* ${path}_tree = minecraft_add_array(tree, hf_${path}_array, tvb, &offset);
+proto_tree* ${path}_tree = minecraft_add_subtree(${tree}, hf_${path}, tvb, &offset);
 for (int i = 0; i < ${path}_count; i++) {
-${indent(merge_snippet(generate_snippet(data.type, `${path}_item`, types, name, undefined, `${path}_tree`)), 2)}
+${indent(merge_snippet(generate_snippet(data.type, `${path}_item`, types, `${name}Item`, undefined, `${path}_tree`)), 2)}
 }`
     yield { code }
   }
