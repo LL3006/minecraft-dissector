@@ -3,10 +3,10 @@ const dataPath = require("./minecraft-data/data/dataPaths.json")
 const data = require(`./minecraft-data/data/${dataPath.pc["1.16.3"].protocol}/protocol.json`)
 const assert = require("assert")
 
-function indent(code, indent = "  ") {
+function indent(code, n = 2) {
   return code
     .split("\n")
-    .map((line) => indent + line)
+    .map((line) => " ".repeat(n) + line)
     .join("\n")
 }
 
