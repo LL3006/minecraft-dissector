@@ -260,31 +260,24 @@ generate(["login", "toClient"])
 generate(["play", "toServer"])
 generate(["play", "toClient"])
 
-console.log(hf.map(({ path }) => `static int hf_${path} = -1;`).join("\n"))
-
-console.log("")
-
-console.log(`static hf_register_info hf_generated[] = {`)
-
-
 const NONE_TYPES = ["FT_STRING", "FT_BYTES", "FT_FLOAT", "FT_DOUBLE", "FT_NONE"]
 
 console.log(
-  indent(
-    hf
-      .map(({ name, path, type }) => {
-        return `{ &hf_${path},
-    { "${uncamel(name)}", "minecraft.${path.replace(/_/g, ".")}", ${type}, ${
-        NONE_TYPES.includes(type)  ? "BASE_NONE" : "BASE_DEC"
-        }, NULL,
-      0x0, "${uncamel(name)}", HFILL }},`
-      })
-      .join("\n\n")
-  )
-)
+`${(hf.map(({ path }) => `static int hf_${path} = -1;`).join("\n"))}
 
-console.log("};")
+static hf_register_info hf_generated[] = {
+${indent(
+  hf
+    .map(({ name, path, type }) => {
+      return `{ &hf_${path},
+  { "${uncamel(name)}", "minecraft.${path.replace(/_/g, ".")}", ${type}, ${
+      NONE_TYPES.includes(type)  ? "BASE_NONE" : "BASE_DEC"
+      }, NULL,
+    0x0, "${uncamel(name)}", HFILL }},`
+    })
+    .join("\n\n")
+)}
+};
 
-console.log("")
-
-console.log(functions.join("\n\n"))
+${functions.join("\n\n")}
+`)
