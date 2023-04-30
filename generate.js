@@ -31,7 +31,7 @@ const natives = {
     return {
       code: args
         .map(({ type, name, anon }) => {
-          if (name === 'item') console.error(type)
+          // if (name === 'item') console.error(type)
           const new_path = `${path}_${name}`
           const { code, hf_type } = generate_snippet(type, types, undefined, {
             path: new_path,
@@ -40,7 +40,7 @@ const natives = {
           hf.push({
             name,
             path: new_path,
-            type: hf_type,
+            type: hf_type || "FT_NONE",
           })
           return code
         })
@@ -155,13 +155,20 @@ minecraft_add_buffer(tree, hf_${path}, tvb, &offset, ${path}_len);`,
   },
 }
 
+class UnsupportedError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "UnsupportedError";
+  }
+}
+  
 const functions = []
 const hf = []
 
 function generate_snippet(type, types, args, ctx = {}) {
   let fieldInfo
   if (typeof type === "string") {
-    if (!(type in types)) throw new Error("unknown type " + type)
+    if (!(type in types)) throw new UnsupportedError("Unknown type " + type)
 
     fieldInfo = types[type]
   } else fieldInfo = type
@@ -171,12 +178,12 @@ function generate_snippet(type, types, args, ctx = {}) {
   }
   if (typeof fieldInfo === "string") {
     if (fieldInfo === "native") {
-      throw new Error("unknown native " + type)
+      throw new UnsupportedError("Unknown native " + type)
     }
     return generate_snippet(fieldInfo, types, args, ctx)
   } else if (Array.isArray(fieldInfo)) {
     return generate_snippet(fieldInfo[0], types, fieldInfo[1], ctx)
-  } else throw new Error("Invalid type " + type)
+  } else throw new UnsupportedError("Invalid type " + type)
 }
 
 function types_from_namespace(namespace) {
@@ -197,7 +204,7 @@ function types_from_namespace(namespace) {
   return types
 }
 
-function generate(namespace, skip = []) {
+function generate(namespace) {
   const TYPES = types_from_namespace(namespace)
   const { packet } = TYPES
 
@@ -218,14 +225,17 @@ function generate(namespace, skip = []) {
 ${indent(
     Object.entries(names)
       .map(([id, name]) => {
-        if (skip.includes(name)) {
-          return `case ${id}:
-  col_set_str(pinfo->cinfo, COL_INFO, "${unsnake(name)} [${namespace[0]}] (${namespace[1]})");
-  break;`
+        let code
+        try {
+          snippet = generate_snippet(names_to_types[name], TYPES, undefined, {
+            path: `${path}_${name}`,
+          })
+          code = snippet.code
+        } catch (e) {
+          if (!(e instanceof UnsupportedError)) throw e;
+          code = `// [STUB]: ${e.message}`
         }
-        const { code } = generate_snippet(names_to_types[name], TYPES, undefined, {
-          path: `${path}_${name}`,
-        })
+
         return `case ${id}:
   col_set_str(pinfo->cinfo, COL_INFO, "${unsnake(name)} [${namespace[0]}] (${namespace[1]})");
 ${indent(code)}
@@ -247,35 +257,8 @@ generate(["status", "toClient"])
 generate(["login", "toServer"])
 generate(["login", "toClient"])
 
-generate(["play", "toServer"], [
-  // need to support bitfield and switch
-  'query_block_nbt', 'use_entity', 'generate_structure', 'block_dig', 'advancement_tab', 'update_command_block',
-  'update_jigsaw_block', 'update_structure_block', 'update_sign', 'block_place',
-  'window_click', 'edit_book', 'set_creative_slot'
-])
-
-const use_array = [
-  'statistics', 'multi_block_change', 'tab_complete', 'declare_commands', 'window_items',
-  'explosion', 'login', 'map', 'trade_list', 'player_info', 'unlock_recipes', 'entity_destroy',
-  'set_passengers', 'advancements', 'entity_update_attributes', 'declare_recipes', 'tags',
-]
-const use_optionalNbt = ['tile_entity_data']
-const use_nbt = ['map_chunk', 'nbt_query_response', 'respawn']
-const use_entityMetadataLoop = ['entity_metadata']
-const use_topBitSetTerminatedArray = ['entity_equipment']
-const use_bitfield = [
-  'spawn_entity_painting', 'acknowledge_player_digging', 'block_break_animation', 'block_action', 'block_change',
-  'world_event', 'open_sign_entity', 'spawn_position'
-]
-const use_switch = [
-  'boss_bar', 'world_particles', 'combat_event', 'face_player', 'world_border', 'scoreboard_objective', 'teams',
-  'scoreboard_score', 'title', 'stop_sound', 'set_slot'
-]
-
-generate(["play", "toClient"], [
-  ...use_array,...use_optionalNbt, ...use_nbt, ...use_entityMetadataLoop,
-  ...use_topBitSetTerminatedArray, ...use_bitfield, ...use_switch
-])
+generate(["play", "toServer"])
+generate(["play", "toClient"])
 
 console.log(hf.map(({ path }) => `static int hf_${path} = -1;`).join("\n"))
 
@@ -284,7 +267,7 @@ console.log("")
 console.log(`static hf_register_info hf_generated[] = {`)
 
 
-const NONE_TYPES = ["FT_STRING", "FT_BYTES", "FT_FLOAT", "FT_DOUBLE"]
+const NONE_TYPES = ["FT_STRING", "FT_BYTES", "FT_FLOAT", "FT_DOUBLE", "FT_NONE"]
 
 console.log(
   indent(
