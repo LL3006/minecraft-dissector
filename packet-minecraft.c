@@ -4,6 +4,7 @@
 
 #include <epan/packet.h>
 #include <epan/proto.h>
+#include <epan/dissectors/packet-tcp.h>
 #include <epan/conversation.h>
 #include <epan/proto_data.h>
 #include <ws_attributes.h>
@@ -178,11 +179,10 @@ struct minecraft_frame_data {
     bool compressed;
 };
 
+#define MIN_FRAME_LEN 1
 
 static void dissect_minecraft_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint offset, guint32 len)
 {
-    col_set_str(pinfo->cinfo, COL_PROTOCOL, "Minecraft");
-
     conversation_t *conversation = find_or_create_conversation(pinfo);
 
     struct minecraft_conversation_data *conversation_data = (struct minecraft_conversation_data *)conversation_get_proto_data(conversation, proto_minecraft);
@@ -267,35 +267,32 @@ static void dissect_minecraft_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tr
     }
 }
 
-static int dissect_minecraft(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
-{
+static guint32 get_minecraft_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset, void *data _U_) {
+    guint32 len;
+    guint32 new_offset = offset;
+    if (read_varint(&len, tvb, &new_offset) != false) return len + (new_offset - offset);
+    else return 0; 
+}
+
+static int dissect_minecraft_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_) {
+    
+    col_set_str(pinfo->cinfo, COL_PROTOCOL, "Minecraft");
+    
     guint offset = 0;
-    while (offset < tvb_reported_length(tvb)) {
-        gint available = tvb_reported_length_remaining(tvb, offset);
-        guint32 len = 0;
-        const guint offset_start = offset;
-        if (read_varint(&len, tvb, &offset) == false) {
-            pinfo->desegment_offset = offset;
-            pinfo->desegment_len = DESEGMENT_ONE_MORE_SEGMENT;
-            return (offset + available);
-        }
+    guint32 len;
+    read_varint(&len, tvb, &offset);
+    proto_item *item = proto_tree_add_item(tree, proto_minecraft, tvb, 0, offset + len, ENC_NA);
+    proto_tree *subtree = proto_item_add_subtree(item, ett_minecraft);
+    proto_tree_add_uint(subtree, hf_length, tvb, 0, offset, len);
+    dissect_minecraft_packet(tvb, pinfo, subtree, offset, len);
+    offset += (guint)len;
+    
+    return tvb_captured_length(tvb);
+}
 
-        if (len > available) {
-            pinfo->desegment_offset = offset;
-            pinfo->desegment_len = len - available;
-            return (offset + available);
-        }
-
-        proto_item *item = proto_tree_add_item(tree, proto_minecraft, tvb, offset, len, ENC_NA);
-
-        proto_tree *subtree = proto_item_add_subtree(item, ett_minecraft);
-
-        proto_tree_add_uint(subtree, hf_length, tvb, offset_start, offset - offset_start, len);
-
-        dissect_minecraft_packet(tvb, pinfo, subtree, offset, len);
-
-        offset += (guint)len;
-    }
+static int dissect_minecraft(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
+{
+    tcp_dissect_pdus(tvb, pinfo, tree, TRUE, MIN_FRAME_LEN, get_minecraft_message_len, dissect_minecraft_message, data);
 
     return tvb_captured_length(tvb);
 }
