@@ -30,6 +30,7 @@ static void minecraft_add_f64(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint
 static void minecraft_add_buffer(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset, guint32 len);
 static void minecraft_add_restbuffer(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset);
 static void minecraft_add_UUID(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset);
+static proto_tree* minecraft_add_array(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset);
 
 
 #include "generated.c"
@@ -160,6 +161,11 @@ static void minecraft_add_restbuffer(proto_tree *tree, int hfindex, tvbuff_t *tv
 
 static void minecraft_add_UUID(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset) {
     minecraft_add_buffer(tree, hfindex, tvb, offset, 16);
+}
+
+static proto_tree* minecraft_add_array(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset) {
+    proto_item* item = proto_tree_add_item(tree, hfindex, tvb, *offset, 0, ENC_NA);
+    return proto_item_add_subtree(item, 0);
 }
 
 struct minecraft_conversation_data {
