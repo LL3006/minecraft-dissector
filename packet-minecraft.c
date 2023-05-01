@@ -31,7 +31,7 @@ static void minecraft_add_f64(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint
 static void minecraft_add_buffer(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset, guint32 len);
 static void minecraft_add_restbuffer(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset);
 static void minecraft_add_UUID(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset);
-static proto_tree* minecraft_add_subtree(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset);
+static proto_tree* minecraft_add_subtree(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset, gint idx);
 static void minecraft_add_nbt(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset);
 
 
@@ -55,14 +55,6 @@ static hf_register_info hf[] = {
     { &hf_packet_id,
         { "Packet Id", "minecraft.packet_id", FT_UINT32, BASE_HEX, NULL,
             0x0, "Packet Id", HFILL }},
-};
-
-static int ett_minecraft = -1;
-static int ett_data = -1;
-
-static gint *ett[] = {
-    &ett_minecraft,
-    &ett_data,
 };
 
 
@@ -165,9 +157,9 @@ static void minecraft_add_UUID(proto_tree *tree, int hfindex, tvbuff_t *tvb, gin
     minecraft_add_buffer(tree, hfindex, tvb, offset, 16);
 }
 
-static proto_tree* minecraft_add_subtree(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset) {
+static proto_tree* minecraft_add_subtree(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset, gint idx) {
     proto_item* item = proto_tree_add_item(tree, hfindex, tvb, *offset, 0, ENC_NA);
-    return proto_item_add_subtree(item, ett_data);
+    return proto_item_add_subtree(item, idx);
 }
 
 #define NBT_TAG_End 0

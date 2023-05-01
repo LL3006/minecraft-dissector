@@ -215,9 +215,9 @@ minecraft_add_buffer(${tree}, hf_${path}, tvb, &offset, ${path}_len);`,
     if (!data.countType) throw new UnsupportedError("Unknown count method")
     const count = generate_snippet(data.countType,`${path}_count`, types, `${name}Count`, undefined, tree).next().value
     hf.push({name, path, type: "FT_NONE"})
-    
+    ett.push(path)
     code = `${count.return_type} ${path}_count = ${count.code}
-proto_tree* ${path}_tree = minecraft_add_subtree(${tree}, hf_${path}, tvb, &offset);
+proto_tree* ${path}_tree = minecraft_add_subtree(${tree}, hf_${path}, tvb, &offset, ett_${path});
 for (int i = 0; i < ${path}_count; i++) {
 ${indent(merge_snippet(generate_snippet(data.type, `${path}_item`, types, `${name}Item`, undefined, `${path}_tree`), true), 2)}
 }`
@@ -228,11 +228,51 @@ ${indent(merge_snippet(generate_snippet(data.type, `${path}_item`, types, `${nam
     yield {
       code: `minecraft_add_nbt(${tree}, hf_${path}, tvb, &offset);`
     }
+  },
+  *bitfield({path, name, data, tree}) {
+    bitfieldSize = data.reduce((p, c) => p +=  c.size, 0)
+    if (!name) throw new UnsupportedError("Cannot build bitfield: name is undefined")
+    hf.push({path, name, type: "FT_UINT" + bitfieldSize })
+    ett.push(path);
+    
+    prevFieldSize = 0
+    for (item of data) {
+      // JS number has no 64bit support? Really?
+      bitmask = "0x" + (
+        (( 1n<<BigInt(item.size) ) - 1n) << BigInt(bitfieldSize-prevFieldSize-item.size)
+      ).toString(16).toUpperCase()
+      
+      let itemType
+      if (item.size == 1) itemType = "FT_BOOLEAN"
+      else {
+        itemType = "FT_UINT"
+        if (item.signed) itemType = "FT_INT"
+        itemType += bitfieldSize
+      }
+      
+      hf.push({
+        path: `${path}_${item.name}`, 
+        name: `${item.name}`, 
+        type: itemType, 
+        bitmask
+      })
+      prevFieldSize += item.size
+    }
+    yield {
+      code: `static int * const ${path}_fields[] = {
+${indent(data.map(({name}) =>  `&hf_${path}_${name},`).join("\n"))}
+  NULL
+};
+proto_tree_add_bitmask(${tree}, tvb, offset, hf_${path},
+  ett_${path}, ${path}_fields, ENC_BIG_ENDIAN);
+offset+=1;`
+    }
   }
 }
 
 const functions = []
 const hf = []
+const ett = ["minecraft"]
 
 function types_from_namespace(namespace) {
   const types = {}
@@ -303,15 +343,21 @@ console.log(
 
 ${(hf.map(({ path }) => `static int hf_${path} = -1;`).join("\n"))}
 
+${(ett.map((name) => `static int ett_${name} = -1;`).join("\n"))}
+
+static gint *ett[] = {
+${indent((ett.map((name) => `&ett_${name},`).join("\n")))}
+};
+
 static hf_register_info hf_generated[] = {
 ${indent(
   hf
-    .map(({ name, path, type }) => {
+    .map(({ name, path, type, bitmask }) => {
       return `{ &hf_${path},
   { "${uncamel(name)}", "minecraft.${path.replace(/_/g, ".")}", ${type}, ${
       NONE_TYPES.includes(type)  ? "BASE_NONE" : "BASE_DEC"
       }, NULL,
-    0x0, "${uncamel(name)}", HFILL }},`
+    ${bitmask || "0x0"}, "${uncamel(name)}", HFILL }},`
     })
     .join("\n\n")
 )}
