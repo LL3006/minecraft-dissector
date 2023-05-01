@@ -32,6 +32,7 @@ static void minecraft_add_buffer(proto_tree *tree, int hfindex, tvbuff_t *tvb, g
 static void minecraft_add_restbuffer(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset);
 static void minecraft_add_UUID(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset);
 static proto_tree* minecraft_add_subtree(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset);
+static void minecraft_add_nbt(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset);
 
 
 #include "generated.c"
@@ -167,6 +168,104 @@ static void minecraft_add_UUID(proto_tree *tree, int hfindex, tvbuff_t *tvb, gin
 static proto_tree* minecraft_add_subtree(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset) {
     proto_item* item = proto_tree_add_item(tree, hfindex, tvb, *offset, 0, ENC_NA);
     return proto_item_add_subtree(item, ett_data);
+}
+
+#define NBT_TAG_End 0
+#define NBT_TAG_Byte 1
+#define NBT_TAG_Short 2
+#define NBT_TAG_Int 3
+#define NBT_TAG_Long 4
+#define NBT_TAG_Float 5
+#define NBT_TAG_Double 6
+#define NBT_TAG_Byte_Array 7
+#define NBT_TAG_String 8
+#define NBT_TAG_List 9
+#define NBT_TAG_Compound 10
+#define NBT_TAG_Int_Array 11
+#define NBT_TAG_Long_Array 12
+
+static void parse_nbt(tvbuff_t *tvb, gint *offset, guint8 typeId, gboolean is_dummy) {
+    switch (typeId) {
+        case NBT_TAG_End:
+            return;
+        case NBT_TAG_Byte:
+            *offset += 1;
+            break;
+        case NBT_TAG_Short:
+            *offset += 2;
+            break;
+        case NBT_TAG_Int:
+            *offset += 4;
+            break;
+        case NBT_TAG_Long:
+            *offset += 8;
+            break;
+        case NBT_TAG_Float:
+            *offset += 4;
+            break;
+        case NBT_TAG_Double:
+            *offset += 8;
+            break;
+        case NBT_TAG_Byte_Array: {
+            guint32 size = tvb_get_gint32(tvb, *offset, ENC_BIG_ENDIAN);
+            *offset += 4;
+            *offset += size;
+            break;
+        }
+        case NBT_TAG_String: {
+            guint32 size = tvb_get_guint16(tvb, *offset, ENC_BIG_ENDIAN);
+            *offset += 2;
+            *offset += size;
+            break;
+        }
+        case NBT_TAG_List: {
+            guint8 listTypeId = tvb_get_guint8(tvb, *offset);
+            *offset += 1;
+            guint32 length = tvb_get_gint32(tvb, *offset, ENC_BIG_ENDIAN);
+            *offset += 4;
+            for (; length--; length > 0) {
+                parse_nbt(tvb, offset, listTypeId, FALSE);
+            } 
+            break;
+        }
+        case NBT_TAG_Int_Array: {
+            guint32 length = tvb_get_gint32(tvb, *offset, ENC_BIG_ENDIAN);
+            *offset += 4;
+            *offset += length*4;
+            break;
+        }
+        case NBT_TAG_Long_Array: {   
+            guint32 length = tvb_get_gint32(tvb, *offset, ENC_BIG_ENDIAN);
+            *offset += 4;
+            *offset += length*8;
+            break;
+        }
+        case NBT_TAG_Compound: {
+            while (true) {
+                guint8 tagTypeId = tvb_get_guint8(tvb, *offset);
+                *offset += 1;
+                if (tagTypeId == NBT_TAG_End) break;
+                guint32 nameSize = tvb_get_guint16(tvb, *offset, ENC_BIG_ENDIAN);
+                *offset += 2;
+                *offset += nameSize;
+                parse_nbt(tvb, offset, tagTypeId, FALSE);
+                if (is_dummy) break;
+            }
+            break;
+        }
+        default:
+            g_printerr("Unknown TypeId %x\n", typeId);
+            return;
+    }
+}
+
+static void minecraft_add_nbt(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset) {
+    
+    gint offset_start = *offset;
+    parse_nbt(tvb, offset, NBT_TAG_Compound, TRUE);
+    
+    // Just put everything in a buffer for now
+    proto_tree_add_bytes(tree, hfindex, tvb, offset_start, *offset - offset_start, tvb_memdup(wmem_packet_scope(), tvb, offset_start, *offset - offset_start));
 }
 
 struct minecraft_conversation_data {

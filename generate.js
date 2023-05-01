@@ -222,6 +222,12 @@ for (int i = 0; i < ${path}_count; i++) {
 ${indent(merge_snippet(generate_snippet(data.type, `${path}_item`, types, `${name}Item`, undefined, `${path}_tree`), true), 2)}
 }`
     yield { code }
+  },
+  *nbt({path, name, tree}) {
+    hf.push({name, path, type: "FT_BYTES"})
+    yield {
+      code: `minecraft_add_nbt(${tree}, hf_${path}, tvb, &offset);`
+    }
   }
 }
 
