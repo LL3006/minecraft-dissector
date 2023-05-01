@@ -135,9 +135,9 @@ static void minecraft_add_i32(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint
 }
 
 static void minecraft_add_i64(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset) {
-    const gint64 v = tvb_get_ntohi48(tvb, *offset);
-    proto_tree_add_int64(tree, hfindex, tvb, *offset, 2, v);
-    *offset += 2;
+    const gint64 v = tvb_get_ntohi64(tvb, *offset);
+    proto_tree_add_int64(tree, hfindex, tvb, *offset, 8, v);
+    *offset += 8;
 }
 
 static void minecraft_add_f32(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint *offset) {
